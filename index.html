@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Lattice Multiplication Practice</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Lexend:wght@400;500;600&display=swap">
+<style>
+/* Layout: one panel. The lattice square sits inside a larger grid so its diagonals run out past the left and bottom edges, where the sums are written. */
+:root {
+  --bg: #eaf0f6;
+  --surface: #ffffff;
+  --ink: #14213d;
+  --muted: #566882;
+  --line: #8499b4;
+  --soft: #d5dfeb;
+  --ok: #17803f;
+  --bad: #c42b3a;
+  --btn: #14213d;
+  --btn-ink: #ffffff;
+  --bl: 38%;
+  --tint: .17;
+  --tint-on: .5;
+  --font-ui: "Lexend", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1622; --surface: #172233; --ink: #e8eef8; --muted: #9bacc4; --line: #5d7392;
+    --soft: #2a3a52; --ok: #4fcb82; --bad: #ff7b87; --btn: #e8eef8; --btn-ink: #0e1622;
+    --bl: 68%; --tint: .24; --tint-on: .6; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1622; --surface: #172233; --ink: #e8eef8; --muted: #9bacc4; --line: #5d7392;
+  --soft: #2a3a52; --ok: #4fcb82; --bad: #ff7b87; --btn: #e8eef8; --btn-ink: #0e1622;
+  --bl: 68%; --tint: .24; --tint-on: .6; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.45;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1 { font-size: 1.5rem; font-weight: 600; margin: 0; text-wrap: balance; }
+.head { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; }
+.head p { margin: 4px 0 0; color: var(--muted); max-width: 46ch; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; }
+select, button.act {
+  font: 500 .9rem var(--font-ui); min-height: 40px; padding: 0 14px; border-radius: 8px;
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+}
+button.act { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); cursor: pointer; }
+:focus-visible { outline: 3px solid hsl(210 90% 55%); outline-offset: 2px; }
+
+.panel { background: var(--surface); border-radius: 14px; padding: 18px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.problem { font: 700 1.9rem var(--font-num); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.problem span { color: var(--muted); font-weight: 500; padding: 0 .3em; }
+
+/* Lattice */
+.lattice-wrap { overflow-x: auto; padding: 4px; }
+.lattice { --cell: clamp(48px, 14vw, 88px); --box: calc(var(--cell) * .42); --cbox: calc(var(--cell) * .3); position: relative; display: grid; width: max-content; margin: 0 auto;
+  grid-template-columns: repeat(calc(var(--n) + 1), var(--cell)) 2.2rem;
+  grid-template-rows: 2.2rem repeat(calc(var(--m) + 1), var(--cell)); }
+/* Sum and carry boxes float over the extended diagonals, centred in their strip */
+.layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.layer input { position: absolute; pointer-events: auto; width: var(--box); height: var(--box); padding: 0; text-align: center;
+  border: 1.5px dashed var(--line); border-radius: 6px; background: var(--surface); color: var(--ink);
+  font: 700 calc(var(--cell) * .28) var(--font-num); }
+.digit { display: grid; place-items: center; font: 700 1.5rem var(--font-num); }
+.cell { position: relative; }
+.cell.main { outline: 1.5px solid var(--line); outline-offset: -.75px; background: var(--surface); }
+.cell::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: linear-gradient(to top left, transparent calc(50% - 1px), var(--line) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)); }
+.tri { position: absolute; inset: 0; background: hsl(var(--h) 75% 50% / var(--tint)); transition: background .2s; }
+.tri.tl { clip-path: polygon(0 0, 100% 0, 0 100%); }
+.tri.br { clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.tri.on { background: hsl(var(--h) 80% 50% / var(--tint-on)); }
+.cell input { position: absolute; z-index: 2; width: 42%; height: 42%; padding: 0; border: 0; background: transparent;
+  text-align: center; font: 700 calc(var(--cell) * .3) var(--font-num); color: var(--ink); caret-color: var(--ink); }
+.cell input.tl { top: 6%; left: 6%; }
+.cell input.br { bottom: 6%; right: 6%; }
+.layer input.sum:disabled { opacity: .55; }
+.layer input.live { border-style: solid; border-color: hsl(var(--h) 62% var(--bl)); border-width: 2px; }
+.layer input:focus-visible { outline: 2px solid hsl(210 90% 55%); outline-offset: 0; }
+.layer input.lead { opacity: .35; }
+.layer input.carry { width: var(--cbox); height: var(--cbox); border-radius: 5px; font-size: calc(var(--cell) * .2); }
+.layer input.carry::placeholder { color: var(--muted); opacity: .8; }
+.layer input.carry:disabled { opacity: .5; }
+.layer input.carry.auto { opacity: .45; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px hsl(var(--h) 75% 50% / .3); } }
+
+input.ok { color: var(--ok) !important; }
+input.bad { color: var(--bad) !important; animation: shake .25s; }
+@keyframes shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+input.pop { animation: pop .35s; }
+@keyframes pop { 50% { transform: scale(1.25); } }
+
+.coach { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--bg); border-left: 5px solid var(--line); min-height: 7.6em; }
+@media (max-width: 560px) { .coach { min-height: 13.5em; } }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; min-height: 40px; }
+.nav { display: flex; align-items: center; gap: 8px; }
+button.icon { width: 44px; min-height: 40px; padding: 0; font-size: 1.25rem; border-radius: 8px; border: 1.5px solid var(--line);
+  background: var(--surface); color: var(--ink); cursor: pointer; }
+button.icon:disabled { opacity: .35; cursor: default; }
+.steplbl { min-width: 6.2em; text-align: center; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lattice input.future { color: transparent !important; caret-color: transparent; }
+button.act:disabled { opacity: .5; cursor: default; }
+.digit { border-radius: 8px; transition: background .2s, color .2s; }
+.digit.hl { background: var(--ink); color: var(--surface); }
+.cell.main.cur { outline: 3px solid hsl(210 90% 55%); outline-offset: -3px; z-index: 2; }
+.coach.bad { border-left-color: var(--bad); }
+.coach.good { border-left-color: var(--ok); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+</head>
+<body>
+<main>
+  <section class="panel">
+    <div class="problem" id="problem"></div>
+    <div class="lattice-wrap"><div class="lattice" id="lattice"></div></div>
+    <div class="coach" id="coach" role="status"></div>
+    <div class="actions">
+      <button class="act" id="showBtn" type="button">Show me</button>
+      <div class="nav" id="nav" hidden>
+        <button class="icon" id="prevBtn" type="button" aria-label="Previous step">←</button>
+        <span class="steplbl" id="stepLbl"></span>
+        <button class="icon" id="nextBtn" type="button" aria-label="Next step">→</button>
+      </div>
+      <button class="act" id="newBtn" type="button" hidden>New problem</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const HUES = [205, 268, 335, 28, 88, 150];
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let P, slots, carries, topEls, sideEls, cellSteps, allInputs, awaiting = [];
+const SIZES = [[2, 1], [2, 2], [3, 2], [3, 3]];
+let lastSize = -1;
+
+const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+
+function compute(A, B) {
+  const n = A.length, m = B.length, nb = n + m;
+  const prod = B.map(b => A.map(a => a * b));
+  const bands = Array.from({ length: nb }, () => ({ digits: [] }));
+  for (let r = 0; r < m; r++) for (let c = 0; c < n; c++) {
+    const k = (n - 1 - c) + (m - 1 - r), p = prod[r][c];
+    bands[k].digits.push(p % 10);
+    bands[k + 1].digits.push(Math.floor(p / 10));
+  }
+  let carry = 0;
+  bands.forEach(b => {
+    b.carryIn = carry;
+    b.total = b.digits.reduce((s, d) => s + d, 0) + carry;
+    b.write = b.total % 10;
+    b.carry = Math.floor(b.total / 10);
+    carry = b.carry;
+  });
+  return { A, B, n, m, nb, prod, bands, value: parseInt(A.join("")) * parseInt(B.join("")) };
+}
+
+function say(text, kind = "") {
+  const c = $("#coach");
+  c.className = "coach " + kind;
+  c.textContent = text;
+}
+
+/* Checks typed input against the expected value. A correct prefix stays neutral. */
+function wire(el, expected, hint, onOk) {
+  expected = String(expected);
+  el.dataset.exp = expected;
+  el.addEventListener("input", () => {
+    el.value = el.value.replace(/\D/g, "");
+    el.classList.remove("ok", "bad");
+    const v = el.value;
+    if (!v) return;
+    if (v === expected) {
+      el.classList.add("ok");
+      el.readOnly = true;
+      onOk();
+    } else if (!expected.startsWith(v)) {
+      void el.offsetWidth;
+      el.classList.add("bad");
+      say(hint, "bad");
+    }
+  });
+}
+
+function highlight(j) {
+  document.querySelectorAll(".tri").forEach(t => t.classList.toggle("on", +t.dataset.band === j));
+}
+
+function render() {
+  const { A, B, n, m, nb, bands } = P;
+  $("#problem").innerHTML = `${A.join("")}<span>×</span>${B.join("")}`;
+  const L = $("#lattice");
+  L.innerHTML = "";
+  L.style.setProperty("--n", n);
+  L.style.setProperty("--m", m);
+  slots = [];
+  carries = [];
+  topEls = [];
+  sideEls = [];
+  cellSteps = [];
+  awaiting = [];
+
+  /* grid columns: 1 left extension, 2..n+1 lattice, n+2 side digits
+     grid rows: 1 top digits, 2..m+1 lattice, m+2 bottom extension */
+  A.forEach((d, c) => {
+    const e = document.createElement("div");
+    e.className = "digit"; e.textContent = d;
+    e.style.gridColumn = c + 2; e.style.gridRow = 1;
+    topEls.push(e);
+    L.append(e);
+  });
+  B.forEach((d, r) => {
+    const e = document.createElement("div");
+    e.className = "digit"; e.textContent = d;
+    e.style.gridColumn = n + 2; e.style.gridRow = r + 2;
+    sideEls.push(e);
+    L.append(e);
+  });
+
+  for (let r = 0; r < m; r++) for (let c = 0; c < n; c++) {
+    const k = (n - 1 - c) + (m - 1 - r), p = P.prod[r][c];
+    const cell = document.createElement("div");
+    cell.className = "cell main";
+    cell.style.gridColumn = c + 2; cell.style.gridRow = r + 2;
+    cell.innerHTML =
+      `<i class="tri tl" data-band="${k + 1}" style="--h:${HUES[k + 1]}"></i>` +
+      `<i class="tri br" data-band="${k}" style="--h:${HUES[k]}"></i>`;
+    const hint = `${A[c]} × ${B[r]} = ${p}. Put the tens digit (${Math.floor(p / 10)}) in the top-left and the ones digit (${p % 10}) in the bottom-right.`;
+    const step = { r, c, p, cell, inputs: [], left: 2 };
+    const idx = cellSteps.length;
+    [["tl", Math.floor(p / 10), "tens digit"], ["br", p % 10, "ones digit"]].forEach(([cls, val, nm]) => {
+      const inp = document.createElement("input");
+      inp.className = cls; inp.maxLength = 1; inp.inputMode = "numeric"; inp.autocomplete = "off"; inp.disabled = true;
+      inp.setAttribute("aria-label", `${A[c]} times ${B[r]}, ${nm}`);
+      inp.step = idx;
+      wire(inp, val, hint, () => {
+        if (--step.left === 0) endCell(idx);
+        else step.inputs.find(x => !x.readOnly)?.focus();
+      });
+      step.inputs.push(inp);
+      cell.append(inp);
+    });
+    cellSteps.push(step);
+    L.append(cell);
+  }
+
+  /* Extension cells continue the diagonals past the left and bottom edges.
+     A cell at grid column C, row R (both from 0) has tint band nb + 1 - S on its
+     top-left half and nb - S on its bottom-right half, where S = C + R. */
+  for (let R = 0; R < m + 1; R++) for (let C = 0; C < n + 1; C++) {
+    if (C >= 1 && R < m) continue;
+    const S = C + R + 1, tl = nb + 1 - S, br = nb - S;
+    const hasTl = tl >= 0 && tl < nb, hasBr = br >= 0 && br < nb;
+    if (!hasTl && !hasBr) continue;
+    const cell = document.createElement("div");
+    cell.className = "cell ext";
+    cell.style.gridColumn = C + 1; cell.style.gridRow = R + 2;
+    if (hasTl) cell.insertAdjacentHTML("beforeend", `<i class="tri tl" data-band="${tl}" style="--h:${HUES[tl]}"></i>`);
+    if (hasBr) cell.insertAdjacentHTML("beforeend", `<i class="tri br" data-band="${br}" style="--h:${HUES[br]}"></i>`);
+    L.append(cell);
+  }
+
+  /* Boxes: centres in cell units (x from the left of the grid, y from the top of the lattice).
+     Each carry box sits nearest the lattice, with the sum one step further out the same strip. */
+  const layer = document.createElement("div");
+  layer.className = "layer";
+  L.append(layer);
+  function box(cls, j, x, y, len, label) {
+    const inp = document.createElement("input");
+    inp.className = cls; inp.maxLength = len; inp.inputMode = "numeric"; inp.autocomplete = "off"; inp.disabled = true;
+    inp.style.setProperty("--h", HUES[j]);
+    const size = cls === "carry" ? "--cbox" : "--box";
+    inp.style.left = `calc(var(--cell) * ${x} - var(${size}) / 2)`;
+    inp.style.top = `calc(2.2rem + var(--cell) * ${y} - var(${size}) / 2)`;
+    inp.setAttribute("aria-label", label);
+    layer.append(inp);
+    return inp;
+  }
+  for (let j = 0; j < nb; j++) {
+    const at = j < n
+      ? { c: [n + .2 - j, m + .3], s: [n - j - .25, m + .75] }
+      : { c: [.7, nb - j - .2], s: [.25, nb - j + .25] };
+    slots[j] = box("sum", j, at.s[0], at.s[1], 1, `Diagonal ${j + 1} sum`);
+    if (j > 0) {
+      carries[j] = box("carry", j, at.c[0], at.c[1], 1, `Carry into diagonal ${j + 1}`);
+      carries[j].placeholder = "+";
+    }
+  }
+
+  for (let j = 0; j < nb; j++) {
+    slots[j].step = cellSteps.length + j;
+    if (j + 1 < nb) carries[j + 1].step = cellSteps.length + j;
+    const b = bands[j];
+    const expr = b.digits.join(" + ") + (b.carryIn ? ` + ${b.carryIn} (carry)` : "");
+    wire(slots[j], b.write, `Add the digits in the highlighted diagonal: ${expr} = ${b.total}. Write only the ones digit of the total.`,
+      () => tryFinish(j));
+    if (j + 1 < nb) wire(carries[j + 1], b.carry,
+      b.carry === 0
+        ? `The total is ${b.total}, which is less than 10, so nothing carries. Write 0.`
+        : `The total is ${b.total}. Carry its tens digit to the next diagonal.`,
+      () => { carries[j + 1].classList.add("pop"); tryFinish(j); });
+  }
+
+  highlight(-1);
+  allInputs = [...L.querySelectorAll("input")];
+  L.inert = false;
+  $("#showBtn").hidden = false;
+  $("#showBtn").disabled = false;
+  $("#nav").hidden = true;
+  $("#newBtn").hidden = true;
+  startCell(0);
+}
+
+/* The instruction for step s: cells first, then one step per diagonal, then the finished lattice. */
+function promptFor(s) {
+  const { A, B, nb } = P, nCells = cellSteps.length;
+  if (s >= nCells + nb) {
+    return `Done. Read the sums down the left side, then across the bottom: ${A.join("")} × ${B.join("")} = ${P.value.toLocaleString()}.`;
+  }
+  if (s < nCells) {
+    const c = cellSteps[s];
+    return s === 0
+      ? `Multiply the two highlighted digits, ${A[c.c]} × ${B[c.r]}. Put the tens digit in the top-left triangle and the ones digit in the bottom-right. Write 0 when there are no tens.`
+      : `Multiply the highlighted digits, ${A[c.c]} × ${B[c.r]}.`;
+  }
+  const j = s - nCells;
+  if (j === 0) return "Now add each diagonal, starting at the bottom right. Add the digits in the highlighted diagonal and write the ones digit of the total in its box. If the total is 10 or more, write the tens digit in the small + box of the next diagonal.";
+  if (j + 1 < nb) return "Add the digits in the highlighted diagonal, plus the carry in the small + box. Write the ones digit of the total in the sum box, and carry the tens digit if there is one.";
+  return "Add the last diagonal, plus the carry in the small + box, and write the total.";
+}
+
+function startCell(i) {
+  const s = cellSteps[i];
+  s.cell.classList.add("cur");
+  topEls[s.c].classList.add("hl");
+  sideEls[s.r].classList.add("hl");
+  s.inputs.forEach(x => { x.disabled = false; });
+  awaiting = s.inputs;
+  say(promptFor(i));
+  s.inputs[0].focus({ preventScroll: true });
+}
+
+function endCell(i) {
+  const s = cellSteps[i];
+  s.cell.classList.remove("cur");
+  topEls[s.c].classList.remove("hl");
+  sideEls[s.r].classList.remove("hl");
+  if (i + 1 < cellSteps.length) startCell(i + 1);
+  else startSums();
+}
+
+function startSums() {
+  activate(0);
+}
+
+function activate(j) {
+  const s = slots[j], b = P.bands[j];
+  s.disabled = false;
+  s.classList.add("live");
+  highlight(j);
+  awaiting = [s];
+  if (j + 1 < P.nb) {
+    const c = carries[j + 1];
+    c.disabled = false;
+    c.classList.add("live");
+    if (b.carry > 0) awaiting.push(c);
+  }
+  say(promptFor(cellSteps.length + j));
+  s.focus({ preventScroll: true });
+}
+
+/* Show me fills in the answer for the current step. The prompt already said what to do. */
+function showMe() {
+  for (const el of awaiting.filter(x => !x.readOnly)) {
+    el.value = el.dataset.exp;
+    el.dispatchEvent(new Event("input"));
+  }
+}
+
+/* A diagonal is finished once its ones digit is written and the carry box of the next
+   diagonal holds the tens digit. When nothing carries, that box fills with 0 by itself. */
+function tryFinish(j) {
+  const b = P.bands[j];
+  if (!slots[j].readOnly) return;
+  if (j + 1 < P.nb) {
+    const c = carries[j + 1];
+    if (!c.readOnly) {
+      if (b.carry !== 0) return;
+      c.value = "0"; c.readOnly = true; c.classList.add("ok", "auto");
+    }
+  }
+  colDone(j);
+}
+
+function colDone(j) {
+  slots[j].classList.remove("live");
+  if (j + 1 < P.nb) carries[j + 1].classList.remove("live");
+  if (j + 1 < P.nb) activate(j + 1);
+  else finish();
+}
+
+function finish() {
+  awaiting = [];
+  $("#lattice").inert = true;
+  $("#showBtn").hidden = true;
+  $("#nav").hidden = false;
+  $("#newBtn").hidden = false;
+  review(cellSteps.length + P.nb);
+  $("#newBtn").focus({ preventScroll: true });
+}
+
+/* Review mode, after the lattice is finished: step back and forth through what the student did.
+   Boxes filled in at later steps are hidden, so each view shows the lattice as it was at that step. */
+function review(s) {
+  const { nb } = P, nCells = cellSteps.length, total = nCells + nb;
+  view = s;
+  cellSteps.forEach(c => c.cell.classList.remove("cur"));
+  [...topEls, ...sideEls].forEach(e => e.classList.remove("hl"));
+  allInputs.forEach(x => { x.classList.toggle("future", x.step > s); x.classList.remove("live"); });
+  slots.forEach(x => x.classList.remove("lead"));
+  highlight(-1);
+  if (s >= total) {
+    for (let j = nb - 1; j > 0 && slots[j].value === "0"; j--) slots[j].classList.add("lead");
+  } else if (s < nCells) {
+    const c = cellSteps[s];
+    c.cell.classList.add("cur");
+    topEls[c.c].classList.add("hl");
+    sideEls[c.r].classList.add("hl");
+  } else {
+    const j = s - nCells;
+    highlight(j);
+    slots[j].classList.add("live");
+    if (j + 1 < nb) carries[j + 1].classList.add("live");
+  }
+  say(promptFor(s), s >= total ? "good" : "");
+  $("#prevBtn").disabled = s === 0;
+  $("#nextBtn").disabled = s >= total;
+  $("#stepLbl").textContent = s >= total ? "Done" : `Step ${s + 1} of ${total}`;
+}
+let view = 0;
+
+function newProblem() {
+  let pick;
+  do { pick = rnd(0, SIZES.length - 1); } while (pick === lastSize);
+  lastSize = pick;
+  const [n, m] = SIZES[pick];
+  let data, tries = 0;
+  do {
+    const A = Array.from({ length: n }, () => rnd(1, 9));
+    const B = Array.from({ length: m }, () => rnd(1, 9));
+    data = compute(A, B);
+  } while (!data.bands.some(b => b.total >= 10) && ++tries < 60);
+  P = data;
+  render();
+}
+
+$("#newBtn").addEventListener("click", newProblem);
+$("#showBtn").addEventListener("click", showMe);
+$("#prevBtn").addEventListener("click", () => review(Math.max(0, view - 1)));
+$("#nextBtn").addEventListener("click", () => review(Math.min(cellSteps.length + P.nb, view + 1)));
+newProblem();
+</script>
+</body>
+</html>
